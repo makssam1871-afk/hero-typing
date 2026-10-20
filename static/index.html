@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="ru" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Печать Героя — Киберрывок 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Inter:wght@400;600;800&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0b0f19; color: #e2e8f0; overflow-x: hidden; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .char-current { background-color: #3b82f6; color: #fff; border-radius: 4px; animation: pulse 1s infinite; }
+        .char-correct { color: #10b981; }
+        .char-error { background-color: #ef4444; color: #fff; border-radius: 4px; }
+        .key-btn { transition: all 0.1s ease; border-bottom-width: 3px; }
+        .key-active { transform: translateY(2px); filter: brightness(1.5); box-shadow: 0 0 15px rgba(59, 130, 246, 0.8); border-color: #fff !important; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.65; } }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+    <canvas id="fx-canvas" class="fixed inset-0 pointer-events-none z-50"></canvas>
+
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <span class="text-2xl">⚡</span>
+                <div>
+                    <h1 class="font-extrabold text-xl tracking-wider bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400 bg-clip-text text-transparent">ПЕЧАТЬ ГЕРОЯ</h1>
+                    <p class="text-xs text-slate-400">Тренажёр слепой печати • Киберрывок 2026</p>
+                </div>
+            </div>
+
+            <nav class="flex gap-2">
+                <button onclick="switchTab('trainer')" id="tab-trainer" class="px-4 py-1.5 rounded-lg text-sm font-semibold bg-blue-600 text-white">Тренажёр</button>
+                <button onclick="switchTab('stats')" id="tab-stats" class="px-4 py-1.5 rounded-lg text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300">Статистика</button>
+                <button onclick="switchTab('leaderboard')" id="tab-leaderboard" class="px-4 py-1.5 rounded-lg text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300">Лидеры</button>
+            </nav>
+
+            <div class="flex items-center gap-4 bg-slate-800/90 px-3 py-1.5 rounded-xl border border-slate-700">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span id="ui-username" class="font-bold text-sm text-white">Гость</span>
+                        <span id="ui-level" class="text-xs bg-indigo-600 px-2 py-0.5 rounded-full font-bold">Ур. 1</span>
+                    </div>
+                    <div class="w-28 bg-slate-700 h-1.5 rounded-full mt-1 overflow-hidden">
+                        <div id="ui-xp-bar" class="bg-emerald-400 h-full transition-all duration-300" style="width: 10%"></div>
+                    </div>
+                </div>
+                <button onclick="openAuthModal()" class="text-xs bg-slate-700 hover:bg-slate-600 px-2.5 py-1.5 rounded-lg font-medium">Аккаунт</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 py-6 flex-1 w-full">
+        <section id="view-trainer" class="space-y-5">
+            <div class="flex flex-wrap justify-between items-center gap-3 bg-slate-900 p-3 rounded-xl border border-slate-800">
+                <div class="flex flex-wrap gap-1.5">
+                    <button onclick="setMode('words')" id="mode-words" class="mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white">Слова (2-10 букв)</button>
+                    <button onclick="setMode('sentences')" id="mode-sentences" class="mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-300">Предложения</button>
+                    <button onclick="setMode('code')" id="mode-code" class="mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-300">Код (PY/JS/HTML)</button>
+                    <button onclick="setMode('symbols')" id="mode-symbols" class="mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-300">Символы</button>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button onclick="setLang('ru')" id="lang-ru" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white">RU</button>
+                    <button onclick="setLang('en')" id="lang-en" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-300">EN</button>
+                    <button onclick="toggleSound()" id="btn-sound" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-emerald-400">🔊 Звук</button>
+                    <button onclick="resetExercise()" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-700 hover:bg-slate-600 text-white">🔄 Заново</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
+                <div class="bg-slate-900 p-3 rounded-xl border border-slate-800 text-center">
+                    <div class="text-xs text-slate-400">Скорость (WPM / CPM)</div>
+                    <div class="text-xl font-extrabold text-white mt-0.5"><span id="live-wpm">0</span> <span class="text-xs font-normal text-slate-400">/ <span id="live-cpm">0</span></span></div>
+                </div>
+                <div class="bg-slate-900 p-3 rounded-xl border border-slate-800 text-center">
+                    <div class="text-xs text-slate-400">Точность</div>
+                    <div class="text-xl font-extrabold text-emerald-400 mt-0.5"><span id="live-acc">100</span>%</div>
+                </div>
+                <div class="bg-slate-900 p-3 rounded-xl border border-slate-800 text-center">
+                    <div class="text-xs text-slate-400">Ошибки</div>
+                    <div class="text-xl font-extrabold text-rose-400 mt-0.5" id="live-errors">0</div>
+                </div>
+                <div class="bg-slate-900 p-3 rounded-xl border border-slate-800 text-center">
+                    <div class="text-xs text-slate-400">Очки опыта</div>
+                    <div class="text-xl font-extrabold text-amber-400 mt-0.5" id="live-score">0</div>
+                </div>
+                <div class="bg-slate-900 p-3 rounded-xl border border-slate-800 text-center">
+                    <div class="text-xs text-slate-400">Комбо и множитель</div>
+                    <div class="text-xl font-extrabold text-indigo-400 mt-0.5"><span id="live-combo">0</span> <span id="live-mult" class="text-xs bg-indigo-900/80 px-1.5 py-0.5 rounded text-indigo-300">x1</span></div>
+                </div>
+                <div class="bg-slate-900 p-3 rounded-xl border border-slate-800 text-center flex flex-col justify-center">
+                    <div class="text-xs text-slate-400">Активный бонус</div>
+                    <div id="live-bonus" class="text-xs font-bold text-amber-300 mt-1 truncate">Нет бонуса</div>
+                </div>
+            </div>
+
+            <div class="relative bg-slate-900/95 border-2 border-slate-800 focus-within:border-blue-500 rounded-2xl p-6 shadow-xl cursor-text">
+                <div id="text-display" class="mono text-xl md:text-2xl leading-relaxed tracking-wide select-none break-words min-h-[110px]"></div>
+                <div class="mt-4 pt-3 border-t border-slate-800/80 flex flex-wrap justify-between items-center text-xs text-slate-400">
+                    <div>💡 <b>Подсказка пальца:</b> <span id="finger-hint" class="text-emerald-400 font-semibold">Нажмите на текст или любую клавишу для старта</span></div>
+                    <div>Постановка рук: левая <b class="text-rose-400">ФЫВА</b>, правая <b class="text-sky-400">ОЛДЖ</b> (большие пальцы на Пробеле)</div>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 shadow-lg overflow-x-auto">
+                <div id="keyboard-container" class="space-y-1.5 select-none min-w-[540px] max-w-4xl mx-auto"></div>
+                <div class="flex flex-wrap justify-center gap-3 mt-4 text-[11px] text-slate-400">
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Мизинец</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Безымянный</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Средний</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span> Указательный (Л)</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> Указательный (П)</span>
+                    <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-purple-500"></span> Большой (Пробел)</span>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-stats" class="hidden space-y-6">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                    <div class="text-xs text-slate-400">Всего тренировок</div>
+                    <div id="st-sessions" class="text-2xl font-extrabold mt-1">0</div>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                    <div class="text-xs text-slate-400">Общее время (сек)</div>
+                    <div id="st-time" class="text-2xl font-extrabold mt-1">0</div>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                    <div class="text-xs text-slate-400">Средняя скорость (WPM)</div>
+                    <div id="st-wpm" class="text-2xl font-extrabold text-blue-400 mt-1">0</div>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                    <div class="text-xs text-slate-400">Средняя точность</div>
+                    <div id="st-acc" class="text-2xl font-extrabold text-emerald-400 mt-1">0%</div>
+                </div>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="md:col-span-2 bg-slate-900 p-4 rounded-xl border border-slate-800">
+                    <h3 class="font-bold text-sm mb-3 text-slate-300">Динамика скорости (WPM/CPM) и точности (%)</h3>
+                    <canvas id="statsChart" height="130"></canvas>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 flex flex-col justify-between">
+                    <div>
+                        <h3 class="font-bold text-sm mb-2 text-slate-300">Проблемные клавиши (анализ ошибок)</h3>
+                        <p class="text-xs text-slate-400 mb-3">Символы, на которых чаще всего случаются опечатки:</p>
+                        <div id="st-error-keys" class="flex flex-wrap gap-2"></div>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-slate-800">
+                        <h4 class="font-bold text-xs text-slate-400 mb-2">Достижения героя</h4>
+                        <div id="st-achievements" class="space-y-1.5 text-xs"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-leaderboard" class="hidden space-y-4">
+            <div class="flex flex-wrap justify-between items-center gap-3 bg-slate-900 p-4 rounded-xl border border-slate-800">
+                <div class="flex gap-2">
+                    <button onclick="loadLeaderboard('all')" id="lb-all" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white">За всё время</button>
+                    <button onclick="loadLeaderboard('week')" id="lb-week" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-300">За неделю</button>
+                    <button onclick="loadLeaderboard('today')" id="lb-today" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-300">За сегодня</button>
+                </div>
+                <div class="text-xs text-slate-400">Сортировка по рекордам скорости, точности и опыту</div>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-4">
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                    <h3 class="font-bold text-sm text-blue-400 mb-3">🚀 Топ по скорости (WPM / CPM)</h3>
+                    <div id="lb-list-speed" class="space-y-2 text-sm"></div>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                    <h3 class="font-bold text-sm text-emerald-400 mb-3">🎯 Топ по точности (%)</h3>
+                    <div id="lb-list-acc" class="space-y-2 text-sm"></div>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                    <h3 class="font-bold text-sm text-amber-400 mb-3">⭐ Топ по опыту (XP)</h3>
+                    <div id="lb-list-xp" class="space-y-2 text-sm"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="auth-modal" class="fixed inset-0 bg-black/75 hidden items-center justify-center z-50 p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-sm w-full p-6 space-y-4">
+            <h3 class="font-extrabold text-lg text-white">Синхронизация аккаунта</h3>
+            <p class="text-xs text-slate-400">Введите email и пароль для сохранения или восстановления прогресса на любом устройстве.</p>
+            <input id="auth-email" type="email" placeholder="Email (например, hero@cyber.ru)" class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm">
+            <input id="auth-user" type="text" placeholder="Никнейм (для новых игроков)" class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm">
+            <input id="auth-pass" type="password" placeholder="Пароль" class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm">
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeAuthModal()" class="px-4 py-2 rounded-lg text-xs bg-slate-800 text-slate-300">Отмена</button>
+                <button onclick="submitAuth()" class="px-4 py-2 rounded-lg text-xs font-bold bg-blue-600 text-white">Войти / Создать</button>
+            </div>
+        </div>
+    </div>
+
+    <input id="mobile-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" class="opacity-0 fixed top-0 left-0 w-0 h-0">
+
+    <script>
+        const DATA = {
+            ru: {
+                words: ["код", "сеть", "байт", "экран", "алгоритм", "сервер", "клавиша", "скорость", "память", "система", "функция", "массив", "скрипт", "модуль", "данные", "питон", "поток", "запрос", "индекс", "логика"],
+                sentences: [
+                    "Слепая печать позволяет программисту полностью сфокусироваться на архитектуре кода.",
+                    "Каждый правильный символ приближает тебя к званию настоящего мастера клавиатуры.",
+                    "Высокая скорость набора текста экономит десятки часов при написании документации."
+                ],
+                code: [
+                    "def calc_wpm(chars, sec): return round((chars / 5) / (sec / 60), 1)",
+                    "const activeUsers = users.filter(u => u.xp >= 1000).map(u => u.name);",
+                    "<div class=\"hero-card\"><span id=\"score\">1000</span></div>"
+                ],
+                symbols: ["!@# $%^ &*() _+-=", "{}[] :;\"' <>?/ |\\~`", "1029 3847 56!@ #90$ %^&*"]
+            },
+            en: {
+                words: ["code", "node", "byte", "async", "await", "python", "react", "docker", "kernel", "matrix", "vector", "string", "socket", "buffer", "thread", "lambda", "schema", "deploy", "commit", "branch"],
+                sentences: [
+                    "Touch typing builds muscle memory and boosts your daily coding productivity.",
+                    "Clean architecture and fast fingers make hackathons much easier to win.",
+                    "Practice daily to turn complex keyboard shortcuts into effortless reflexes."
+                ],
+                code: [
+                    "async function fetchLeader(id) { return await api.get(`/users/${id}`); }",
+                    "for i, val in enumerate(data_stream): process_node(i, val)",
+                    "export default ({ title }) => <h1 className='text-xl'>{title}</h1>;"
+                ],
+                symbols: ["!@# $%^ &*() _+-=", "{}[] :;\"' <>?/ |\\~`", "404_ERR #200_OK $PATH && ||"]
+            }
+        };
+
+        const ACHIEVEMENTS_LIST = [
+            { id: "first_blood", title: "Первый шаг", desc: "Завершить первую тренировку" },
+            { id: "speed_200", title: "Скоростной демон", desc: "Достичь скорости 200 символов/мин (CPM)" },
+            { id: "genius_300", title: "Печатный гений", desc: "Достичь скорости 300 слов/мин (или 300 CPM)" },
+            { id: "combo_50", title: "Стальной палец", desc: "Серия из 50 верных нажатий подряд без ошибок" },
+            { id: "no_errors", title: "Снайпер", desc: "Пройти упражнение со 100% точностью" }
+        ];
+
+        const KEYBOARD_ROWS = {
+            ru: [
+                ["ё","1","2","3","4","5","6","7","8","9","0","-","="],
+                ["й","ц","у","к","е","н","г","ш","щ","з","х","ъ"],
+                ["ф","ы","в","а","п","р","о","л","д","ж","э"],
+                ["я","ч","с","м","и","т","ь","б","ю","."]
+            ],
+            en: [
+                ["`","1","2","3","4","5","6","7","8","9","0","-","="],
+                ["q","w","e","r","t","y","u","i","o","p","[","]"],
+                ["a","s","d","f","g","h","j","k","l",";","'"],
+                ["z","x","c","v","b","n","m",",",".","/"]
+            ]
+        };
+
+        const FINGER_COLORS = [
+            ["bg-rose-900/70 border-rose-500","bg-rose-900/70 border-rose-500","bg-amber-900/70 border-amber-500","bg-emerald-900/70 border-emerald-500","bg-sky-900/70 border-sky-500","bg-sky-900/70 border-sky-500","bg-indigo-900/70 border-indigo-500","bg-indigo-900/70 border-indigo-500","bg-emerald-900/70 border-emerald-500","bg-amber-900/70 border-amber-500","bg-rose-900/70 border-rose-500","bg-rose-900/70 border-rose-500","bg-rose-900/70 border-rose-500"],
+            ["bg-rose-900/70 border-rose-500","bg-amber-900/70 border-amber-500","bg-emerald-900/70 border-emerald-500","bg-sky-900/70 border-sky-500","bg-sky-900/70 border-sky-500","bg-indigo-900/70 border-indigo-500","bg-indigo-900/70 border-indigo-500","bg-emerald-900/70 border-emerald-500","bg-amber-900/70 border-amber-500","bg-rose-900/70 border-rose-500","bg-rose-900/70 border-rose-500","bg-rose-900/70 border-rose-500"],
+            ["bg-rose-900/70 border-rose-500","bg-amber-900/70 border-amber-500","bg-emerald-900/70 border-emerald-500","bg-sky-900/70 border-sky-500","bg-sky-900/70 border-sky-500","bg-indigo-900/70 border-indigo-500","bg-indigo-900/70 border-indigo-500","bg-emerald-900/70 border-emerald-500","bg-amber-900/70 border-amber-500","bg-rose-900/70 border-rose-500","bg-rose-900/70 border-rose-500"],
+            ["bg-rose-900/70 border-rose-500","bg-amber-900/70 border-amber-500","bg-emerald-900/70 border-emerald-500","bg-sky-900/70 border-sky-500","bg-sky-900/70 border-sky-500","bg-indigo-900/70 border-indigo-500","bg-indigo-900/70 border-indigo-500","bg-emerald-900/70 border-emerald-500","bg-amber-900/70 border-amber-500","bg-rose-900/70 border-rose-500"]
+        ];
+
+        const FINGER_NAMES = {
+            "rose": "Мизинец", "amber": "Безымянный палец", "emerald": "Средний палец",
+            "sky": "Левый указательный", "indigo": "Правый указательный", "purple": "Большой палец (Пробел)"
+        };
+
+        let state = {
+            mode: 'words', lang: 'ru', sound: true,
+            targetText: '', index: 0, startTime: null, timer: null,
+            errors: 0, totalKeystrokes: 0, score: 0, combo: 0, maxCombo: 0,
+            bonusType: null, bonusUntil: 0, errorMap: {},
+            user: JSON.parse(localStorage.getItem('typing_hero_user')) || null
+        };
+        let chartInstance = null;
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playTone(freq, duration, type = 'sine') {
+            if (!state.sound) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        const canvas = document.getElementById('fx-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function spawnParticles() {
+            for (let i = 0; i < 12; i++) {
+                particles.push({
+                    x: window.innerWidth / 2 + (Math.random() - 0.5) * 300,
+                    y: 260 + (Math.random() - 0.5) * 60,
+                    vx: (Math.random() - 0.5) * 6,
+                    vy: (Math.random() - 0.8) * 6,
+                    size: Math.random() * 4 + 2,
+                    color: ['#38bdf8', '#34d399', '#fbbf24', '#a855f7'][Math.floor(Math.random() * 4)],
+                    life: 1
+                });
+            }
+        }
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach((p, idx) => {
+                p.x += p.vx; p.y += p.vy; p.life -= 0.03;
+                ctx.globalAlpha = Math.max(p.life, 0);
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                if (p.life <= 0) particles.splice(idx, 1);
+            });
+            requestAnimationFrame(animateParticles);
+        }
+        animateParticles();
+
+        function generateText() {
+            const pool = DATA[state.lang][state.mode];
+            if (state.mode === 'words') {
+                let words = [];
+                for (let i = 0; i < 16; i++) words.push(pool[Math.floor(Math.random() * pool.length)]);
+                return words.join(' ');
+            }
+            return pool[Math.floor(Math.random() * pool.length)];
+        }
+
+        function renderKeyboard() {
+            const container = document.getElementById('keyboard-container');
+            container.innerHTML = '';
+            const rows = KEYBOARD_ROWS[state.lang];
+            rows.forEach((row, rIdx) => {
+                const rowDiv = document.createElement('div');
+                rowDiv.className = 'flex justify-center gap-1.5';
+                row.forEach((key, kIdx) => {
+                    const colorClass = FINGER_COLORS[rIdx][kIdx] || "bg-slate-800 border-slate-600";
+                    const btn = document.createElement('div');
+                    btn.id = `key-${key}`;
+                    btn.dataset.color = colorClass;
+                    btn.className = `key-btn w-9 h-9 md:w-11 md:h-11 rounded-lg flex items-center justify-center font-bold text-xs md:text-sm uppercase ${colorClass}`;
+                    btn.textContent = key;
+                    rowDiv.appendChild(btn);
+                });
+                container.appendChild(rowDiv);
+            });
+            const spaceRow = document.createElement('div');
+            spaceRow.className = 'flex justify-center mt-1.5';
+            const spaceBtn = document.createElement('div');
+            spaceBtn.id = 'key- ';
+            spaceBtn.dataset.color = 'bg-purple-900/70 border-purple-500';
+            spaceBtn.className = 'key-btn w-64 h-9 rounded-lg flex items-center justify-center font-bold text-xs uppercase bg-purple-900/70 border-purple-500';
+            spaceBtn.textContent = 'ПРОБЕЛ';
+            spaceRow.appendChild(spaceBtn);
+            container.appendChild(spaceRow);
+        }
+
+        function renderText() {
+            const display = document.getElementById('text-display');
+            display.innerHTML = '';
+            state.targetText.split('').forEach((char, idx) => {
+                const span = document.createElement('span');
+                span.textContent = char;
+                if (idx < state.index) span.className = 'char-correct';
+                else if (idx === state.index) span.className = 'char-current';
+                display.appendChild(span);
+            });
+            highlightNextKey();
+        }
+
+        function highlightNextKey() {
+            document.querySelectorAll('.key-btn').forEach(el => el.classList.remove('key-active'));
+            const nextChar = state.targetText[state.index]?.toLowerCase();
+            if (!nextChar) return;
+            const keyEl = document.getElementById(`key-${nextChar}`);
+            const hintEl = document.getElementById('finger-hint');
+            if (keyEl) {
+                keyEl.classList.add('key-active');
+                const colorKey = Object.keys(FINGER_NAMES).find(k => keyEl.dataset.color.includes(k));
+                hintEl.textContent = `Клавиша «${nextChar === ' ' ? 'ПРОБЕЛ' : nextChar.toUpperCase()}» — ${FINGER_NAMES[colorKey] || 'Указательный'}`;
+            } else {
+                hintEl.textContent = `Символ «${nextChar}» (используйте Shift + соответствующий палец)`;
+            }
+        }
+
+        function resetExercise() {
+            clearInterval(state.timer);
+            state.targetText = generateText();
+            state.index = 0; state.startTime = null; state.errors = 0;
+            state.totalKeystrokes = 0; state.score = 0; state.combo = 0; state.maxCombo = 0;
+            state.bonusType = null; state.bonusUntil = 0; state.errorMap = {};
+            updateLiveMetrics();
+            renderKeyboard();
+            renderText();
+        }
+
+        function updateLiveMetrics() {
+            const elapsedMin = state.startTime ? Math.max((Date.now() - state.startTime) / 60000, 0.01) : 0;
+            const speedBoost = (state.bonusType === 'speed' && Date.now() < state.bonusUntil) ? 1.5 : 1;
+            const cpm = state.startTime ? Math.round((state.index / elapsedMin) * speedBoost) : 0;
+            const wpm = Math.round(cpm / 5);
+            const acc = state.totalKeystrokes > 0 ? Math.max(0, Math.round(((state.totalKeystrokes - state.errors) / state.totalKeystrokes) * 100)) : 100;
+
+            let mult = 1;
+            if (state.combo >= 30) mult = 5;
+            else if (state.combo >= 15) mult = 3;
+            else if (state.combo >= 5) mult = 2;
+
+            document.getElementById('live-wpm').textContent = wpm;
+            document.getElementById('live-cpm').textContent = cpm;
+            document.getElementById('live-acc').textContent = acc;
+            document.getElementById('live-errors').textContent = state.errors;
+            document.getElementById('live-score').textContent = state.score;
+            document.getElementById('live-combo').textContent = state.combo;
+            document.getElementById('live-mult').textContent = `x${mult}`;
+
+            const bonusEl = document.getElementById('live-bonus');
+            if (Date.now() < state.bonusUntil) {
+                const secLeft = Math.ceil((state.bonusUntil - Date.now()) / 1000);
+                bonusEl.textContent = state.bonusType === 'xp' ? `🔥 Х2 Опыт (${secLeft}с)` : `⚡ +50% Скорость (${secLeft}с)`;
+            } else {
+                bonusEl.textContent = 'Нет активного бонуса';
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            if (!document.getElementById('auth-modal').classList.contains('hidden')) return;
+            if (document.getElementById('view-trainer').classList.contains('hidden')) return;
+            if (['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab'].includes(e.key)) return;
+            if (e.key === ' ') e.preventDefault();
+
+            if (!state.startTime) {
+                state.startTime = Date.now();
+                state.timer = setInterval(updateLiveMetrics, 400);
+            }
+
+            const expected = state.targetText[state.index];
+            if (!expected) return;
+
+            state.totalKeystrokes++;
+            if (e.key === expected) {
+                playTone(520 + Math.min(state.combo * 8, 400), 0.06, 'triangle');
+                state.index++;
+                state.combo++;
+                state.maxCombo = Math.max(state.maxCombo, state.combo);
+
+                let mult = state.combo >= 30 ? 5 : (state.combo >= 15 ? 3 : (state.combo >= 5 ? 2 : 1));
+                if (state.bonusType === 'xp' && Date.now() < state.bonusUntil) mult *= 2;
+                state.score += 10 * mult;
+
+                if (state.combo % 10 === 0) spawnParticles();
+
+                if (state.combo % 15 === 0 && Date.now() > state.bonusUntil && Math.random() < 0.45) {
+                    state.bonusType = Math.random() > 0.5 ? 'xp' : 'speed';
+                    state.bonusUntil = Date.now() + 10000;
+                }
+
+                renderText();
+                updateLiveMetrics();
+
+                if (state.index >= state.targetText.length) finishExercise();
+            } else {
+                playTone(150, 0.14, 'sawtooth');
+                state.errors++;
+                state.combo = 0;
+                const errKey = expected.toUpperCase();
+                state.errorMap[errKey] = (state.errorMap[errKey] || 0) + 1;
+
+                const currentSpan = document.getElementById('text-display').children[state.index];
+                if (currentSpan) currentSpan.className = 'char-error';
+                updateLiveMetrics();
+            }
+        });
+
+        document.getElementById('text-display').addEventListener('click', () => {
+            document.getElementById('mobile-input').focus();
+        });
+        document.getElementById('mobile-input').addEventListener('input', (e) => {
+            const char = e.target.value.slice(-1);
+            if (char) window.dispatchEvent(new KeyboardEvent('keydown', { key: char }));
+            e.target.value = '';
+        });
+
+        async function finishExercise() {
+            clearInterval(state.timer);
+            const duration = Math.max(1, Math.round((Date.now() - state.startTime) / 1000));
+            const cpm = Math.round((state.targetText.length / duration) * 60);
+            const wpm = Math.round(cpm / 5);
+            const acc = Math.max(0, Math.round(((state.totalKeystrokes - state.errors) / state.totalKeystrokes) * 100));
+
+            let unlocked = ["first_blood"];
+            if (cpm >= 200) unlocked.push("speed_200");
+            if (cpm >= 300 || wpm >= 300) unlocked.push("genius_300");
+            if (state.maxCombo >= 50) unlocked.push("combo_50");
+            if (state.errors === 0) unlocked.push("no_errors");
+
+            spawnParticles();
+            if (state.user) {
+                const res = await fetch('/api/session', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        user_id: state.user.id, mode: state.mode, lang: state.lang,
+                        wpm, cpm, accuracy: acc, errors: state.errors, score: state.score,
+                        duration, session_error_keys: state.errorMap, new_achievements: unlocked
+                    })
+                });
+                if (res.ok) {
+                    const updated = await res.json();
+                    state.user.xp = updated.xp;
+                    state.user.level = updated.level;
+                    state.user.achievements = updated.achievements;
+                    state.user.error_keys = updated.error_keys;
+                    localStorage.setItem('typing_hero_user', JSON.stringify(state.user));
+                    updateUserHeader();
+                }
+            }
+            setTimeout(() => {
+                alert(`Упражнение завершено!\nСкорость: ${wpm} WPM (${cpm} CPM)\nТочность: ${acc}%\nНабрано очков: +${state.score} XP`);
+                resetExercise();
+            }, 250);
+        }
+
+        function setMode(m) {
+            state.mode = m;
+            document.querySelectorAll('.mode-btn').forEach(b => b.className = 'mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-300');
+            document.getElementById(`mode-${m}`).className = 'mode-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white';
+            resetExercise();
+        }
+        function setLang(l) {
+            state.lang = l;
+            document.getElementById('lang-ru').className = l === 'ru' ? 'px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white' : 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-300';
+            document.getElementById('lang-en').className = l === 'en' ? 'px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white' : 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-300';
+            resetExercise();
+        }
+        function toggleSound() {
+            state.sound = !state.sound;
+            document.getElementById('btn-sound').textContent = state.sound ? '🔊 Звук' : '🔇 Без звука';
+        }
+        function switchTab(tab) {
+            ['trainer', 'stats', 'leaderboard'].forEach(t => {
+                document.getElementById(`view-${t}`).classList.add('hidden');
+                document.getElementById(`tab-${t}`).className = 'px-4 py-1.5 rounded-lg text-sm font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300';
+            });
+            document.getElementById(`view-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).className = 'px-4 py-1.5 rounded-lg text-sm font-semibold bg-blue-600 text-white';
+            if (tab === 'stats') loadStats();
+            if (tab === 'leaderboard') loadLeaderboard('all');
+        }
+
+        function openAuthModal() { document.getElementById('auth-modal').classList.remove('hidden'); document.getElementById('auth-modal').classList.add('flex'); }
+        function closeAuthModal() { document.getElementById('auth-modal').classList.add('hidden'); document.getElementById('auth-modal').classList.remove('flex'); }
+
+        async function submitAuth() {
+            const email = document.getElementById('auth-email').value.trim();
+            const username = document.getElementById('auth-user').value.trim();
+            const password = document.getElementById('auth-pass').value.trim();
+            if (!email || !password) return alert('Введите email и пароль');
+
+            const res = await fetch('/api/auth', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, username, password })
+            });
+            if (!res.ok) return alert('Ошибка авторизации: неверный пароль');
+            state.user = await res.json();
+            localStorage.setItem('typing_hero_user', JSON.stringify(state.user));
+            updateUserHeader();
+            closeAuthModal();
+        }
+
+        function updateUserHeader() {
+            if (!state.user) return;
+            document.getElementById('ui-username').textContent = state.user.username;
+            document.getElementById('ui-level').textContent = `Ур. ${state.user.level}`;
+            const progress = (state.user.xp % 1000) / 10;
+            document.getElementById('ui-xp-bar').style.width = `${Math.max(5, progress)}%`;
+        }
+
+        async function loadStats() {
+            if (!state.user) return alert('Войдите в аккаунт (кнопка «Аккаунт» сверху), чтобы сохранять и просматривать детальную статистику!');
+            const res = await fetch(`/api/stats/${state.user.id}`);
+            const data = await res.json();
+
+            document.getElementById('st-sessions').textContent = data.total_sessions;
+            document.getElementById('st-time').textContent = data.total_time;
+            document.getElementById('st-wpm').textContent = data.avg_wpm;
+            document.getElementById('st-acc').textContent = `${data.avg_acc}%`;
+
+            const errContainer = document.getElementById('st-error-keys');
+            errContainer.innerHTML = '';
+            const sortedErrors = Object.entries(data.user.error_keys || {}).sort((a,b) => b[1] - a[1]).slice(0, 8);
+            if (sortedErrors.length === 0) errContainer.innerHTML = '<span class="text-xs text-slate-500">Ошибок пока не зафиксировано</span>';
+            sortedErrors.forEach(([k, count]) => {
+                errContainer.innerHTML += `<span class="px-2.5 py-1 rounded bg-rose-950 border border-rose-700 text-rose-300 text-xs font-bold">${k}: ${count} ош.</span>`;
+            });
+
+            const achContainer = document.getElementById('st-achievements');
+            achContainer.innerHTML = '';
+            ACHIEVEMENTS_LIST.forEach(a => {
+                const has = (data.user.achievements || []).includes(a.id);
+                achContainer.innerHTML += `<div class="p-2 rounded border ${has ? 'bg-indigo-950/60 border-indigo-600 text-white' : 'bg-slate-800/40 border-slate-800 text-slate-500'}"><b>${has ? '🏆' : '🔒'} ${a.title}</b> — ${a.desc}</div>`;
+            });
+
+            const labels = data.history.map(h => h.date);
+            const wpmData = data.history.map(h => h.wpm);
+            const accData = data.history.map(h => h.accuracy);
+
+            if (chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(document.getElementById('statsChart'), {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: 'Скорость (WPM)', data: wpmData, borderColor: '#3b82f6', tension: 0.3 },
+                        { label: 'Точность (%)', data: accData, borderColor: '#10b981', tension: 0.3 }
+                    ]
+                },
+                options: { plugins: { legend: { labels: { color: '#cbd5e1' } } }, scales: { x: { ticks: { color: '#94a3b8' } }, y: { ticks: { color: '#94a3b8' } } } }
+            });
+        }
+
+        async function loadLeaderboard(period) {
+            ['all', 'week', 'today'].forEach(p => {
+                document.getElementById(`lb-${p}`).className = p === period ? 'px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 text-white' : 'px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-300';
+            });
+            const res = await fetch(`/api/leaderboard?period=${period}`);
+            const data = await res.json();
+
+            const renderList = (id, items, metricKey, suffix) => {
+                const el = document.getElementById(id);
+                el.innerHTML = items.map((u, i) => `
+                    <div class="flex justify-between items-center bg-slate-800/60 px-3 py-2 rounded-lg">
+                        <span><b>#${i+1}</b> ${u.username} <span class="text-xs text-indigo-400">(Ур.${u.level})</span></span>
+                        <span class="font-bold">${u[metricKey]}${suffix}</span>
+                    </div>
+                `).join('');
+9            };
+            renderList('lb-list-speed', data.by_speed, 'wpm', ' WPM');
+            renderList('lb-list-acc', data.by_accuracy, 'accuracy', '%');
+            renderList('lb-list-xp', data.by_xp, 'xp', ' XP');
+        }
+
+        updateUserHeader();
+        resetExercise();
+    </script>
+</body>
+</html>
